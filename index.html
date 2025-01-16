@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside id="file-tree"></aside>
+  <div id="content-panel">
+    <pre id="file-contents">Select a file to view its contents.</pre>
+    <div id="file-info">
+      <h3>File Info</h3>
+      <table class="file-details">
+        <tr><td>File Name:</td><td id="file-name"></td></tr>
+        <tr><td>Extension:</td><td id="file-extension"></td></tr>
+        <tr><td>Path:</td><td id="file-path"></td></tr>
+        <tr><td>Size:</td><td id="file-size"></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    const gitIngest = `Directory structure:
+└── web-form-with-express/
+    ├── server.js
+    └── public/
+        └── client.js
+
+
+Files Content:
+
+================================================
+File: examples/web-form-with-express/server.js
+================================================
+require("dotenv").config()
+const express = require("express")
+const app = express()
+
+const { Client } = require("@notionhq/client")
+const notion = new Client({ auth: process.env.NOTION_KEY })
+
+// http://expressjs.com/en/starter/static-files.html
+app.use(express.static("public"))
+app.use(express.json()) // for parsing application/json
+
+// http://expressjs.com/en/starter/basic-routing.html
+app.get("/", function (request, response) {
+  response.sendFile(__dirname + "/views/index.html")
+})
+
+// Create new database. The page ID is set in the environment variables.
+app.post("/databases", async function (request, response) {
+  const pageId = process.env.NOTION_PAGE_ID
+  const title = request.body.dbName
+
+  try {
+    const newDb = await notion.databases.create({
+      parent: {
+        type: "page_id",
+        page_id: pageId,
+      },
+      title: [
+        {
+          type: "text",
+          text: {
+            content: title,
+          },
+        },
+      ],
+      properties: {
+        Name: {
+          title: {},
+        },
+      },
+    })
+    response.json({ message: "success!", data: newDb })
+  } catch (error) {
+    response.json({ message: "error", error })
+  }
+})
+
+// Create new page. The database ID is provided in the web form.
+app.post("/pages", async function (request, response) {
+  const { dbID, pageName, header } = request.body
+
+  try {
+    const newPage = await notion.pages.create({
+      parent: {
+        type: "database_id",
+        database_id: dbID,
+      },
+      properties: {
+        Name: {
+          title: [
+            {
+              text: {
+                content: pageName,
+              },
+            },
+          ],
+        },
+      },
+      children: [
+        {
+          object: "block",
+          heading_2: {
+            rich_text: [
+              {
+                text: {
+                  content: header,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    response.json({ message: "success!", data: newPage })
+  } catch (error) {
+    response.json({ message: "error", error })
+  }
+})
+
+// Create new block (page content). The page ID is provided in the web form.
+app.post("/blocks", async function (request, response) {
+  const { pageID, content } = request.body
+
+  try {
+    const newBlock = await notion.blocks.children.append({
+      block_id: pageID, // a block ID can be a page ID
+      children: [
+        {
+          // Use a paragraph as a default but the form or request can be updated to allow for other block types: https://developers.notion.com/reference/block#keys
+          paragraph: {
+            rich_text: [
+              {
+                text: {
+                  content: content,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    response.json({ message: "success!", data: newBlock })
+  } catch (error) {
+    response.json({ message: "error", error })
+  }
+})
+
+// Create new page comments. The page ID is provided in the web form.
+app.post("/comments", async function (request, response) {
+  const { pageID, comment } = request.body
+
+  try {
+    const newComment = await notion.comments.create({
+      parent: {
+        page_id: pageID,
+      },
+      rich_text: [
+        {
+          text: {
+            content: comment,
+          },
+        },
+      ],
+    })
+    response.json({ message: "success!", data: newComment })
+  } catch (error) {
+    response.json({ message: "error", error })
+  }
+})
+
+// listen for requests :)
+const listener = app.listen(process.env.PORT, function () {
+  console.log("Your app is listening on port " + listener.address().port)
+})
+
+
+================================================
+File: examples/web-form-with-express/public/client.js
+================================================
+// This file is run by the browser each time your view template is loaded
+
+/**
+ * Define variables that reference elements included in /views/index.html:
+ */
+
+// Forms
+const dbForm = document.getElementById("databaseForm")
+const pageForm = document.getElementById("pageForm")
+const blocksForm = document.getElementById("blocksForm")
+const commentForm = document.getElementById("commentForm")
+
+// Table cells where API responses will be appended
+const dbResponseEl = document.getElementById("dbResponse")
+const pageResponseEl = document.getElementById("pageResponse")
+const blocksResponseEl = document.getElementById("blocksResponse")
+const commentResponseEl = document.getElementById("commentResponse")
+
+/**
+ * Functions to handle appending new content to /views/index.html
+ */
+
+// Appends the API response to the UI
+const appendApiResponse = function (apiResponse, el) {
+  console.log(apiResponse)
+
+  // Add success message to UI
+  const newParagraphSuccessMsg = document.createElement("p")
+  newParagraphSuccessMsg.textContent = "Result: " + apiResponse.message
+  el.appendChild(newParagraphSuccessMsg)
+  // See browser console for more information
+  if (apiResponse.message === "error") return
+
+  // Add ID of Notion item (db, page, comment) to UI
+  const newParagraphId = document.createElement("p")
+  newParagraphId.textContent = "ID: " + apiResponse.data.id
+  el.appendChild(newParagraphId)
+
+  // Add URL of Notion item (db, page) to UI
+  if (apiResponse.data.url) {
+    const newAnchorTag = document.createElement("a")
+    newAnchorTag.setAttribute("href", apiResponse.data.url)
+    newAnchorTag.innerText = apiResponse.data.url
+    el.appendChild(newAnchorTag)
+  }
+}
+
+// Appends the blocks API response to the UI
+const appendBlocksResponse = function (apiResponse, el) {
+  console.log(apiResponse)
+
+  // Add success message to UI
+  const newParagraphSuccessMsg = document.createElement("p")
+  newParagraphSuccessMsg.textContent = "Result: " + apiResponse.message
+  el.appendChild(newParagraphSuccessMsg)
+
+  // Add block ID to UI
+  const newParagraphId = document.createElement("p")
+  newParagraphId.textContent = "ID: " + apiResponse.data.results[0].id
+  el.appendChild(newParagraphId)
+}
+
+/**
+ * Attach submit event handlers to each form included in /views/index.html
+ */
+
+// Attach submit event to each form
+dbForm.onsubmit = async function (event) {
+  event.preventDefault()
+
+  const dbName = event.target.dbName.value
+  const body = JSON.stringify({ dbName })
+
+  const newDBResponse = await fetch("/databases", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body,
+  })
+  const newDBData = await newDBResponse.json()
+
+  appendApiResponse(newDBData, dbResponseEl)
+}
+
+pageForm.onsubmit = async function (event) {
+  event.preventDefault()
+
+  const dbID = event.target.newPageDB.value
+  const pageName = event.target.newPageName.value
+  const header = event.target.header.value
+  const body = JSON.stringify({ dbID, pageName, header })
+
+  const newPageResponse = await fetch("/pages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body,
+  })
+
+  const newPageData = await newPageResponse.json()
+  appendApiResponse(newPageData, pageResponseEl)
+}
+
+blocksForm.onsubmit = async function (event) {
+  event.preventDefault()
+
+  const pageID = event.target.pageID.value
+  const content = event.target.content.value
+  const body = JSON.stringify({ pageID, content })
+
+  const newBlockResponse = await fetch("/blocks", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body,
+  })
+
+  const newBlockData = await newBlockResponse.json()
+  appendBlocksResponse(newBlockData, blocksResponseEl)
+}
+
+commentForm.onsubmit = async function (event) {
+  event.preventDefault()
+
+  const pageID = event.target.pageIDComment.value
+  const comment = event.target.comment.value
+  const body = JSON.stringify({ pageID, comment })
+
+  const newCommentResponse = await fetch("/comments", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body,
+  })
+
+  const newCommentData = await newCommentResponse.json()
+  appendApiResponse(newCommentData, commentResponseEl)
+}`
+  
+    import parseTextToVFS from './parser.js'; // Adjust the path to the parser
+
+    // Text to parse 
+    const repoText = gitIngest; // Insert the given text here
+
+    // Parse the text into a virtual file system
+    const vfs = parseTextToVFS(repoText);
+
+    // Populate file tree
+    const fileTree = document.getElementById('file-tree');
+    const contentPanel = document.getElementById('file-contents');
+    const fileNameEl = document.getElementById('file-name');
+    const fileExtensionEl = document.getElementById('file-extension');
+    const filePathEl = document.getElementById('file-path');
+    const fileSizeEl = document.getElementById('file-size');
+
+    function createTree(vfs) {
+      console.dir(vfs, { depth: null });
+      
+      const root = document.createElement('div');
+      const rootTitle = document.createElement('h2');
+      rootTitle.textContent = 'Root';
+      root.appendChild(rootTitle);
+
+      // Create a nested structure first
+      const fileStructure = {};
+      
+      Object.keys(vfs).forEach(path => {
+        const parts = path.split('/').filter(Boolean); // Remove empty strings
+        let current = fileStructure;
+        
+        parts.forEach((part, index) => {
+          if (index === parts.length - 1) {
+            // It's a file, store it as null to indicate it's an endpoint
+            current[part] = null;
+          } else {
+            // It's a directory
+            current[part] = current[part] || {};
+            current = current[part];
+          }
+        });
+      });
+
+      function buildDOM(structure, container) {
+        Object.entries(structure).forEach(([name, subStructure]) => {
+          if (subStructure === null) {
+            // This is a file - create just the summary element
+            const summary = document.createElement('summary');
+            summary.classList.add('file');
+            summary.textContent = name;
+            summary.dataset.path = getFullPath(summary);
+            container.appendChild(summary);
+          } else {
+            // This is a directory - create details with summary
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = name;
+            details.appendChild(summary);
+            details.open = true;
+            buildDOM(subStructure, details);
+            container.appendChild(details);
+          }
+        });
+      }
+
+      function getFullPath(element) {
+        const parts = [];
+        let current = element;
+        while (current && current !== root) {
+          if (current.tagName === 'SUMMARY') {
+            parts.unshift(current.textContent);
+          }
+          current = current.parentElement;
+        }
+        return parts.join('/');
+      }
+
+      buildDOM(fileStructure, root);
+      return root;
+    }
+
+
+
+    fileTree.appendChild(createTree(vfs));
+
+    // Add click events to file nodes
+    fileTree.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target.tagName === 'SUMMARY' && !target.firstElementChild) {
+        // Clear previous selection
+        const previousSelected = fileTree.querySelector('summary.selected');
+        if (previousSelected) {
+          previousSelected.classList.remove('selected');
+        }
+        
+        // Add selected class to current target
+        target.classList.add('selected');
+        
+        const parts = [];
+        let current = target;
+        
+        while (current && current !== fileTree) {
+          if (current.tagName === 'SUMMARY') {
+            parts.unshift(current.textContent.trim());
+          }
+          current = current.parentElement;
+        }
+        
+        const filePath = parts.join('/');
+        const file = vfs[filePath];
+        
+        if (file) {
+          contentPanel.textContent = file.contents;
+          fileNameEl.textContent = file.basename || 'N/A';
+          fileExtensionEl.textContent = file.extname || 'N/A';
+          filePathEl.textContent = file.path;
+          fileSizeEl.textContent = `${file.contents.length} bytes`;
+        }
+      }
+    });
+
+
+  </script>
+</body>
+</html>

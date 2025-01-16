@@ -1,0 +1,72 @@
+body,html {margin:0;padding:0;}
+
+body {
+  font-family: Arial, sans-serif;
+  display: flex;
+  min-height: 100vh;
+}
+
+#file-tree {
+  width: 25%;
+  border-right: 1px solid #ccc;
+  padding: 1em;
+  overflow-y: auto;
+}
+
+#file-tree details {
+  margin-left: 1.2em;
+}
+
+#file-tree summary {
+  cursor: pointer;
+  position: relative;
+  margin-left: -1.2em;
+}
+
+#file-tree summary::before {
+  content: "📁";
+  margin-right: 0.5em;
+}
+
+#file-tree summary.file::before {
+  content: "📄";
+  margin-left: 1em;
+}
+
+#file-tree summary.selected {
+  background-color: #333;
+  color: white;
+}
+
+#file-tree summary:hover {
+  background-color: #eee;
+}
+
+#file-tree summary.selected:hover {
+  background-color: #444;
+}
+
+#content-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  padding: 0 1em;
+  gap: 1em;
+}
+
+#file-info {
+  width: 33%;
+  border-left: 1px solid #ccc;
+  padding: 1em;
+}
+
+#file-contents {
+  flex: 2;
+  overflow: auto;
+  padding: 1em;
+  white-space: pre-wrap;
+}
+
+.file-details {
+  margin-bottom: 1em;
+}
