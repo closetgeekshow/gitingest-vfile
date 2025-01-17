@@ -1,0 +1,28 @@
+Directory structure:
+└── web-form-with-express/
+    ├── server.js
+    └── public/
+        └── client.js
+
+
+Files Content:
+
+================================================
+File: examples/web-form-with-express/server.js
+================================================
+require("dotenv").config()
+const express = require("express")
+const app = express()
+
+================================================
+File: examples/web-form-with-express/public/client.js
+================================================
+// This file is run by the browser each time your view template is loaded
+
+/**
+ * Define variables that reference elements included in /views/index.html:
+ */
+
+// Forms
+const dbForm = document.getElementById("databaseForm")
+const pageForm = document.getElementById("pageForm")
